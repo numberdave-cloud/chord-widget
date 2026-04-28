@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Piano — Chord Explorer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #1a0a0a;
+    --surface: #220d0d;
+    --surface2: #2e1010;
+    --accent: #8B1A1A;
+    --accent-light: #c0392b;
+    --accent-glow: rgba(139,26,26,0.35);
+    --gold: #c9a84c;
+    --gold-dim: #7a6030;
+    --text: #f0e6d3;
+    --text-muted: #8a7060;
+    --border: rgba(139,26,26,0.3);
+    --key-white: #f5f0e8;
+    --key-white-pressed: #e8d5b0;
+    --key-black: #1a1008;
+    --key-black-pressed: #3a1a1a;
+    --radius: 10px;
+  }
+
+  body {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgba(139,26,26,0.18) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.012) 2px, rgba(255,255,255,0.012) 4px);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    user-select: none;
+  }
+
+  .widget {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding-bottom: 0.5rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .header-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 6px;
+  }
+  .header-title {
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+  .header-sub {
+    font-size: 14px;
+    font-style: italic;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Chord display */
+  .chord-panel {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    min-height: 90px;
+    position: relative;
+    overflow: hidden;
+  }
+  .chord-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-light), transparent);
+    opacity: 0.4;
+  }
+  .chord-left { display: flex; flex-direction: column; justify-content: center; }
+  .chord-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .chord-name {
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+    min-height: 40px;
+    transition: all 0.15s;
+  }
+  .chord-notes {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    letter-spacing: 0.05em;
+  }
+  .chord-right {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-left: 0.5px solid var(--border);
+    padding-left: 1rem;
+  }
+  .song-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .song-name {
+    font-size: 16px;
+    font-style: italic;
+    color: var(--text);
+    line-height: 1.35;
+    min-height: 22px;
+  }
+  .song-artist {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Notes held */
+  .notes-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    min-height: 28px;
+  }
+  .note-pill {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    color: var(--gold);
+    transition: all 0.1s;
+  }
+  .note-pill.active {
+    background: var(--accent);
+    border-color: var(--accent-light);
+    color: #fff;
+  }
+
+  /* Keyboard */
+  .keyboard-wrap {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .keyboard-wrap::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-light), transparent);
+    opacity: 0.4;
+  }
+
+  .piano {
+    position: relative;
+    height: 140px;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .white-key {
+    width: 42px;
+    height: 130px;
+    background: var(--key-white);
+    border: 1px solid #b0a090;
+    border-radius: 0 0 5px 5px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.06s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 8px;
+    margin-right: 2px;
+    flex-shrink: 0;
+  }
+  .white-key:last-child { margin-right: 0; }
+  .white-key.pressed { background: var(--key-white-pressed); box-shadow: inset 0 -3px 6px rgba(139,26,26,0.3); }
+  .white-key .key-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: #888;
+    line-height: 1;
+  }
+  .white-key .kb-hint {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: #bbb;
+    margin-top: 2px;
+  }
+
+  .black-key {
+    width: 28px;
+    height: 82px;
+    background: var(--key-black);
+    border-radius: 0 0 4px 4px;
+    position: absolute;
+    top: 0;
+    cursor: pointer;
+    z-index: 2;
+    transition: background 0.06s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 6px;
+    border: 1px solid #000;
+  }
+  .black-key.pressed { background: var(--key-black-pressed); box-shadow: inset 0 -2px 4px rgba(192,57,43,0.5); }
+  .black-key .key-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: #666;
+  }
+  .black-key .kb-hint {
+    font-family: 'DM Mono', monospace;
+    font-size: 7px;
+    color: #555;
+    margin-top: 1px;
+  }
+
+  /* Keyboard hint row */
+  .hint-row {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+
+  /* Octave controls */
+  .octave-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .oct-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); }
+  .oct-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 0.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .oct-btn:hover { background: var(--accent); border-color: var(--accent-light); }
+  .oct-val { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--gold); min-width: 20px; text-align: center; }
+
+  /* Volume */
+  .vol-row { display: flex; align-items: center; gap: 10px; }
+  .vol-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 90px; height: 3px;
+    background: var(--surface2); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--gold); border: none;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--gold); border: none;
+  }
+
+  .bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="widget">
+
+  <div class="header">
+    <div class="header-eyebrow">Interactive</div>
+    <div class="header-title">Chord Explorer</div>
+    <div class="header-sub">Play notes together to identify chords</div>
+  </div>
+
+  <!-- Chord display -->
+  <div class="chord-panel">
+    <div class="chord-left">
+      <div class="chord-label">Chord detected</div>
+      <div class="chord-name" id="chordName">—</div>
+      <div class="chord-notes" id="chordNotes">play two or more notes</div>
+    </div>
+    <div class="chord-right">
+      <div class="song-label">Famous example</div>
+      <div class="song-name" id="songName">—</div>
+      <div class="song-artist" id="songArtist"></div>
+    </div>
+  </div>
+
+  <!-- Active notes -->
+  <div class="notes-row" id="notesRow"></div>
+
+  <!-- Piano keyboard -->
+  <div class="keyboard-wrap">
+    <div class="piano" id="piano"></div>
+    <div class="hint-row">computer keyboard: A S D F G H J K &nbsp;|&nbsp; black keys: W E &nbsp;T Y U &nbsp;O</div>
+    <div class="bottom-row">
+      <div class="octave-row">
+        <span class="oct-label">Octave</span>
+        <button class="oct-btn" id="octDown">−</button>
+        <span class="oct-val" id="octVal">4</span>
+        <button class="oct-btn" id="octUp">+</button>
+      </div>
+      <div class="vol-row">
+        <span class="vol-label">Volume</span>
+        <input type="range" id="volSlider" min="0" max="100" value="60">
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Note data ──────────────────────────────────────────────────────────────
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const ENHARMONIC = { 'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb' };
+
+// White keys layout per octave: note, keyboard key
+const WHITE_NOTES = [
+  { note:'C', kb:'a' },
+  { note:'D', kb:'s' },
+  { note:'E', kb:'d' },
+  { note:'F', kb:'f' },
+  { note:'G', kb:'g' },
+  { note:'A', kb:'h' },
+  { note:'B', kb:'j' },
+];
+// Extend to show two octaves — second octave uses shifted keys
+const WHITE_NOTES_2 = [
+  { note:'C', kb:'k' },
+];
+
+// Black key positions (left offset from start of white key group, per octave)
+// offset in units of white key width+gap (44px)
+const BLACK_NOTES = [
+  { note:'C#', kb:'w', after:'C' },
+  { note:'D#', kb:'e', after:'D' },
+  { note:'F#', kb:'t', after:'F' },
+  { note:'G#', kb:'y', after:'G' },
+  { note:'A#', kb:'u', after:'A' },
+];
+const BLACK_NOTES_2 = [
+  { note:'C#', kb:'o', after:'C' },
+];
+
+// ── Chord database ─────────────────────────────────────────────────────────
+// intervals in semitones from root
+const CHORD_TYPES = [
+  { name:'maj',    intervals:[0,4,7],       display:''         },
+  { name:'min',    intervals:[0,3,7],       display:'m'        },
+  { name:'dim',    intervals:[0,3,6],       display:'dim'      },
+  { name:'aug',    intervals:[0,4,8],       display:'+'        },
+  { name:'sus2',   intervals:[0,2,7],       display:'sus2'     },
+  { name:'sus4',   intervals:[0,5,7],       display:'sus4'     },
+  { name:'maj7',   intervals:[0,4,7,11],    display:'maj7'     },
+  { name:'dom7',   intervals:[0,4,7,10],    display:'7'        },
+  { name:'min7',   intervals:[0,3,7,10],    display:'m7'       },
+  { name:'dim7',   intervals:[0,3,6,9],     display:'dim7'     },
+  { name:'halfdim',intervals:[0,3,6,10],    display:'ø7'       },
+  { name:'min-maj7',intervals:[0,3,7,11],   display:'mMaj7'    },
+  { name:'maj6',   intervals:[0,4,7,9],     display:'6'        },
+  { name:'min6',   intervals:[0,3,7,9],     display:'m6'       },
+  { name:'add9',   intervals:[0,4,7,14],    display:'add9'     },
+  { name:'9',      intervals:[0,4,7,10,14], display:'9'        },
+  { name:'5',      intervals:[0,7],         display:'5'        },
+];
+
+// Famous songs keyed by root+type
+const SONGS = {
+  'C-maj':    { song: 'Let It Be', artist: 'The Beatles' },
+  'C-min':    { song: 'Moonlight Sonata', artist: 'Beethoven' },
+  'C-dom7':   { song: 'Watermelon Man', artist: 'Herbie Hancock' },
+  'C-maj7':   { song: 'Misty', artist: 'Erroll Garner' },
+  'C-min7':   { song: 'So What', artist: 'Miles Davis' },
+  'D-maj':    { song: 'Sweet Home Alabama', artist: 'Lynyrd Skynyrd' },
+  'D-min':    { song: 'Losing My Religion', artist: 'R.E.M.' },
+  'D-dom7':   { song: 'Lady in Red', artist: 'Chris de Burgh' },
+  'D-maj7':   { song: 'More Than Words', artist: 'Extreme' },
+  'D-min7':   { song: 'Autumn Leaves', artist: 'Jazz standard' },
+  'E-maj':    { song: 'Brown Eyed Girl', artist: 'Van Morrison' },
+  'E-min':    { song: 'Nothing Else Matters', artist: 'Metallica' },
+  'E-dom7':   { song: 'Pride and Joy', artist: 'Stevie Ray Vaughan' },
+  'E-min7':   { song: 'Wonderwall', artist: 'Oasis' },
+  'F-maj':    { song: 'Hey Jude', artist: 'The Beatles' },
+  'F-min':    { song: 'Creep', artist: 'Radiohead' },
+  'F-maj7':   { song: 'Landslide', artist: 'Fleetwood Mac' },
+  'F-dom7':   { song: 'Ain\'t No Sunshine', artist: 'Bill Withers' },
+  'G-maj':    { song: 'Don\'t Stop Believin\'', artist: 'Journey' },
+  'G-min':    { song: 'Scarborough Fair', artist: 'Simon & Garfunkel' },
+  'G-dom7':   { song: 'Johnny B. Goode', artist: 'Chuck Berry' },
+  'G-maj7':   { song: 'Every Breath You Take', artist: 'The Police' },
+  'G-min7':   { song: 'What\'s Going On', artist: 'Marvin Gaye' },
+  'A-maj':    { song: 'Knockin\' on Heaven\'s Door', artist: 'Bob Dylan' },
+  'A-min':    { song: 'Stairway to Heaven', artist: 'Led Zeppelin' },
+  'A-dom7':   { song: 'Crossroads', artist: 'Robert Johnson' },
+  'A-maj7':   { song: 'Never Gonna Give You Up', artist: 'Rick Astley' },
+  'A-min7':   { song: 'Fly Me to the Moon', artist: 'Jazz standard' },
+  'B-maj':    { song: 'Yesterday', artist: 'The Beatles' },
+  'B-min':    { song: 'Hotel California', artist: 'Eagles' },
+  'B-dom7':   { song: 'Rock Around the Clock', artist: 'Bill Haley' },
+  'Bb-maj':   { song: 'Stand By Me', artist: 'Ben E. King' },
+  'Bb-min':   { song: 'Paint It Black', artist: 'The Rolling Stones' },
+  'Bb-dom7':  { song: 'All Blues', artist: 'Miles Davis' },
+  'Eb-maj':   { song: 'My Funny Valentine', artist: 'Jazz standard' },
+  'Ab-maj':   { song: 'As Time Goes By', artist: 'Casablanca' },
+  'Db-maj':   { song: 'Lush Life', artist: 'Billy Strayhorn' },
+  'F#-min':   { song: 'Bohemian Rhapsody', artist: 'Queen' },
+  'C-dim':    { song: 'Somewhere Over the Rainbow', artist: 'Judy Garland' },
+  'C-aug':    { song: 'Oh! You Pretty Things', artist: 'David Bowie' },
+  'G-sus4':   { song: 'Pinball Wizard', artist: 'The Who' },
+  'A-sus2':   { song: 'Wonderwall (intro)', artist: 'Oasis' },
+  'C-5':      { song: 'Smoke on the Water', artist: 'Deep Purple' },
+  'G-5':      { song: 'Back in Black', artist: 'AC/DC' },
+};
+
+// ── Audio ──────────────────────────────────────────────────────────────────
+let audioCtx = null;
+const activeOscs = {};
+let volume = 0.6;
+let octave = 4;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function midiToFreq(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+function noteToMidi(note, oct) {
+  return NOTE_NAMES.indexOf(note) + (oct + 1) * 12;
+}
+
+function playNote(noteId, freq) {
+  if (activeOscs[noteId]) return;
+  const ctx = getAudioCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const osc2 = ctx.createOscillator();
+
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  osc2.type = 'sine';
+  osc2.frequency.value = freq * 2; // one octave up, quieter — richer tone
+
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(volume * 0.4, ctx.currentTime + 0.01);
+
+  const gain2 = ctx.createGain();
+  gain2.gain.value = volume * 0.06;
+
+  osc.connect(gain);
+  osc2.connect(gain2);
+  gain.connect(ctx.destination);
+  gain2.connect(ctx.destination);
+
+  osc.start();
+  osc2.start();
+  activeOscs[noteId] = { osc, osc2, gain, gain2 };
+}
+
+function stopNote(noteId) {
+  const entry = activeOscs[noteId];
+  if (!entry) return;
+  const ctx = getAudioCtx();
+  const { osc, osc2, gain, gain2 } = entry;
+  const t = ctx.currentTime;
+  gain.gain.setValueAtTime(gain.gain.value, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  gain2.gain.setValueAtTime(gain2.gain.value, t);
+  gain2.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  osc.stop(t + 0.45);
+  osc2.stop(t + 0.45);
+  delete activeOscs[noteId];
+}
+
+// ── Chord detection ────────────────────────────────────────────────────────
+function detectChord(heldNotes) {
+  if (heldNotes.length < 2) return null;
+  const pcs = [...new Set(heldNotes.map(n => n % 12))].sort((a,b)=>a-b);
+  if (pcs.length < 2) return null;
+
+  let best = null;
+  for (let r = 0; r < pcs.length; r++) {
+    const root = pcs[r];
+    const intervals = pcs.map(p => (p - root + 12) % 12).sort((a,b)=>a-b);
+    // also try with octave extension
+    const intervalsExt = [...intervals];
+    if (heldNotes.length > pcs.length) {
+      const extras = heldNotes.map(n => ((n % 12) - root + 12) % 12 + (n >= root ? 0 : 12));
+      extras.forEach(e => { if (e === 14 || e === 9) intervalsExt.push(e); });
+    }
+
+    for (const ct of CHORD_TYPES) {
+      const match = ct.intervals.every(i => intervals.includes(i) || intervalsExt.includes(i));
+      if (match && (!best || ct.intervals.length > best.typeIntervals.length)) {
+        best = { root, rootName: NOTE_NAMES[root], type: ct.name, display: ct.display, typeIntervals: ct.intervals };
+      }
+    }
+  }
+  return best;
+}
+
+function displayName(rootName, display) {
+  const en = ENHARMONIC[rootName];
+  return (en || rootName) + display;
+}
+
+// ── UI ─────────────────────────────────────────────────────────────────────
+const chordNameEl  = document.getElementById('chordName');
+const chordNotesEl = document.getElementById('chordNotes');
+const songNameEl   = document.getElementById('songName');
+const songArtistEl = document.getElementById('songArtist');
+const notesRowEl   = document.getElementById('notesRow');
+const octValEl     = document.getElementById('octVal');
+
+const heldKeys = new Set();   // keyboard keys currently held
+const heldMidi = new Set();   // midi note numbers currently held
+
+function updateDisplay() {
+  const midiArr = [...heldMidi];
+  const noteNames = midiArr.map(m => NOTE_NAMES[m % 12]);
+  const unique = [...new Set(noteNames)];
+
+  // Update note pills
+  notesRowEl.innerHTML = '';
+  unique.forEach(n => {
+    const pill = document.createElement('div');
+    pill.className = 'note-pill active';
+    pill.textContent = ENHARMONIC[n] || n;
+    notesRowEl.appendChild(pill);
+  });
+  if (unique.length === 0) {
+    chordNameEl.textContent = '—';
+    chordNotesEl.textContent = 'play two or more notes';
+    songNameEl.textContent = '—';
+    songArtistEl.textContent = '';
+    return;
+  }
+  if (unique.length === 1) {
+    chordNameEl.textContent = ENHARMONIC[unique[0]] || unique[0];
+    chordNotesEl.textContent = 'single note';
+    songNameEl.textContent = '—';
+    songArtistEl.textContent = '';
+    return;
+  }
+
+  const chord = detectChord(midiArr);
+  if (chord) {
+    const dn = displayName(chord.rootName, chord.display);
+    chordNameEl.textContent = dn;
+    chordNotesEl.textContent = unique.map(n => ENHARMONIC[n] || n).join(' – ');
+
+    const rootForLookup = (ENHARMONIC[chord.rootName] || chord.rootName);
+    const key = rootForLookup + '-' + chord.type;
+    const alt = chord.rootName + '-' + chord.type;
+    const song = SONGS[key] || SONGS[alt] || null;
+    if (song) {
+      songNameEl.textContent = song.song;
+      songArtistEl.textContent = song.artist;
+    } else {
+      songNameEl.textContent = '—';
+      songArtistEl.textContent = '';
+    }
+  } else {
+    chordNameEl.textContent = unique.map(n => ENHARMONIC[n]||n).join('/');
+    chordNotesEl.textContent = 'no match found';
+    songNameEl.textContent = '—';
+    songArtistEl.textContent = '';
+  }
+}
+
+// ── Build piano ────────────────────────────────────────────────────────────
+const piano = document.getElementById('piano');
+const WHITE_W = 42, WHITE_GAP = 2, BLACK_W = 28;
+
+// Build two octaves: current octave + one extra C
+const layout = []; // { note, oct, isBlack, kb, el }
+
+function buildPiano() {
+  piano.innerHTML = '';
+  const whiteKeys = [];
+
+  // Octave 1 white keys
+  WHITE_NOTES.forEach(wn => {
+    whiteKeys.push({ note: wn.note, oct: octave, kb: wn.kb });
+  });
+  // Extra C
+  WHITE_NOTES_2.forEach(wn => {
+    whiteKeys.push({ note: wn.note, oct: octave + 1, kb: wn.kb });
+  });
+
+  // Create white key elements
+  const wEls = [];
+  whiteKeys.forEach((wk, i) => {
+    const el = document.createElement('div');
+    el.className = 'white-key';
+    el.innerHTML = `<span class="key-label">${ENHARMONIC[wk.note]||wk.note}${wk.oct}</span><span class="kb-hint">${wk.kb.toUpperCase()}</span>`;
+    piano.appendChild(el);
+    wEls.push({ el, ...wk });
+    const midi = noteToMidi(wk.note, wk.oct);
+    el.addEventListener('mousedown', e => { e.preventDefault(); triggerOn('m'+midi, midi); });
+    el.addEventListener('mouseup', () => triggerOff('m'+midi, midi));
+    el.addEventListener('mouseleave', () => { if (heldMidi.has(midi) && !heldKeys.has(wk.kb)) triggerOff('m'+midi, midi); });
+    el.addEventListener('touchstart', e => { e.preventDefault(); triggerOn('m'+midi, midi); }, {passive:false});
+    el.addEventListener('touchend', () => triggerOff('m'+midi, midi));
+    layout.push({ note: wk.note, oct: wk.oct, isBlack: false, kb: wk.kb, el, midi });
+  });
+
+  // Create black keys — positioned absolutely
+  const allBlack = [
+    ...BLACK_NOTES.map(b => ({ ...b, oct: octave })),
+    ...BLACK_NOTES_2.map(b => ({ ...b, oct: octave + 1 })),
+  ];
+
+  allBlack.forEach(bk => {
+    // Find the white key it comes after
+    const afterIdx = wEls.findIndex(w => w.note === bk.after && w.oct === bk.oct);
+    if (afterIdx < 0) return;
+    const leftBase = afterIdx * (WHITE_W + WHITE_GAP);
+    const leftOffset = leftBase + WHITE_W - Math.floor(BLACK_W / 2);
+
+    const el = document.createElement('div');
+    el.className = 'black-key';
+    el.style.left = leftOffset + 'px';
+    el.innerHTML = `<span class="key-label">${ENHARMONIC[bk.note]||bk.note}</span><span class="kb-hint">${bk.kb.toUpperCase()}</span>`;
+    piano.appendChild(el);
+
+    const midi = noteToMidi(bk.note, bk.oct);
+    el.addEventListener('mousedown', e => { e.preventDefault(); triggerOn('m'+midi, midi); });
+    el.addEventListener('mouseup', () => triggerOff('m'+midi, midi));
+    el.addEventListener('mouseleave', () => { if (heldMidi.has(midi) && !heldKeys.has(bk.kb)) triggerOff('m'+midi, midi); });
+    el.addEventListener('touchstart', e => { e.preventDefault(); triggerOn('m'+midi, midi); }, {passive:false});
+    el.addEventListener('touchend', () => triggerOff('m'+midi, midi));
+    layout.push({ note: bk.note, oct: bk.oct, isBlack: true, kb: bk.kb, el, midi });
+  });
+
+  // Set piano width
+  const totalW = whiteKeys.length * (WHITE_W + WHITE_GAP) - WHITE_GAP;
+  piano.style.width = totalW + 'px';
+}
+
+function getKeyEl(kb) {
+  return layout.find(k => k.kb === kb);
+}
+
+function triggerOn(id, midi) {
+  if (heldMidi.has(midi)) return;
+  heldMidi.add(midi);
+  const freq = midiToFreq(midi);
+  playNote(id, freq);
+  const entry = layout.find(k => k.midi === midi);
+  if (entry) entry.el.classList.add('pressed');
+  updateDisplay();
+}
+
+function triggerOff(id, midi) {
+  heldMidi.delete(midi);
+  stopNote(id);
+  const entry = layout.find(k => k.midi === midi);
+  if (entry) entry.el.classList.remove('pressed');
+  updateDisplay();
+}
+
+// ── Keyboard events ────────────────────────────────────────────────────────
+const KB_MAP = {
+  'a':'C','s':'D','d':'E','f':'F','g':'G','h':'A','j':'B',
+  'k':'C', // next octave C
+  'w':'C#','e':'D#','t':'F#','y':'G#','u':'A#',
+  'o':'C#', // next octave C#
+};
+const KB_OCT_OFFSET = { 'k': 1, 'o': 1 };
+
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const kb = e.key.toLowerCase();
+  if (!KB_MAP[kb]) return;
+  e.preventDefault();
+  const note = KB_MAP[kb];
+  const oct = octave + (KB_OCT_OFFSET[kb] || 0);
+  const midi = noteToMidi(note, oct);
+  const id = 'kb-' + kb;
+  heldKeys.add(kb);
+  triggerOn(id, midi);
+});
+
+window.addEventListener('keyup', e => {
+  const kb = e.key.toLowerCase();
+  if (!KB_MAP[kb]) return;
+  const note = KB_MAP[kb];
+  const oct = octave + (KB_OCT_OFFSET[kb] || 0);
+  const midi = noteToMidi(note, oct);
+  const id = 'kb-' + kb;
+  heldKeys.delete(kb);
+  triggerOff(id, midi);
+});
+
+// ── Octave controls ────────────────────────────────────────────────────────
+document.getElementById('octDown').addEventListener('click', () => {
+  if (octave <= 2) return;
+  octave--;
+  octValEl.textContent = octave;
+  buildPiano();
+});
+document.getElementById('octUp').addEventListener('click', () => {
+  if (octave >= 6) return;
+  octave++;
+  octValEl.textContent = octave;
+  buildPiano();
+});
+
+// ── Volume ─────────────────────────────────────────────────────────────────
+document.getElementById('volSlider').addEventListener('input', function() {
+  volume = parseInt(this.value) / 100;
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildPiano();
+</script>
+</body>
+</html>
